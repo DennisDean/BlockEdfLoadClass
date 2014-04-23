@@ -249,7 +249,7 @@ classdef BlockEdfLoadClass
     %     varargout = GetEdfFileList(folder)
     %     function varargout = GetEdfFileListInfo(varargin)
     %
-    % Version: 0.1.21
+    % Version: 0.1.25
     %
     % ---------------------------------------------
     % Dennis A. Dean, II, Ph.D
@@ -261,26 +261,23 @@ classdef BlockEdfLoadClass
     % Boston, MA  02149
     %
     % File created: April 29, 2013
-    % Last updated: January 23, 2014 
+    % Last updated: April 24, 2014 
     %    
-    % Copyright © [2014] The Brigham and Women's Hospital, Inc.
-    % THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
-    % "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED 
-    % TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A 
-    % PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER 
-    % OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
-    % EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
-    % PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR 
-    % PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
-    % LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-    % NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
-    % SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    % Copyright © [2014] The Brigham and Women's Hospital, Inc. THE BRIGHAM AND 
+    % WOMEN'S HOSPITAL, INC. AND ITS AGENTS RETAIN ALL RIGHTS TO THIS SOFTWARE 
+    % AND ARE MAKING THE SOFTWARE AVAILABLE ONLY FOR SCIENTIFIC RESEARCH 
+    % PURPOSES. THE SOFTWARE SHALL NOT BE USED FOR ANY OTHER PURPOSES, AND IS
+    % BEING MADE AVAILABLE WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED, 
+    % INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY AND 
+    % FITNESS FOR A PARTICULAR PURPOSE. THE BRIGHAM AND WOMEN'S HOSPITAL, INC. 
+    % AND ITS AGENTS SHALL NOT BE LIABLE FOR ANY CLAIMS, LIABILITIES, OR LOSSES 
+    % RELATING TO OR ARISING FROM ANY USE OF THIS SOFTWARE.
     %
-
+    
     %---------------------------------------------------- Public Properties
     properties (Access = public)
         % Required input
-        edfFN                     % EDF file name
+        edfFN                    % EDF file name
         
         % Optional Input
         signalLabels  = {};        % Cell list of signal labels to load
@@ -294,10 +291,15 @@ classdef BlockEdfLoadClass
         tmax = 30;                 % Display duration from start of signal
         fid = [];
         
-        % Ouput file name
+        % Output file name
         headerTxtFn = 'header.txt'
         signalHeaderTxtFn = 'signalHeader.txt'   
         checkTxtFn = 'edfCheck.txt';
+        
+        % Operation parameters
+        SWAP_MIN_MAX = 0;          % Swap if digMin > difMax; phyMin > phyMax
+        INVERT_SWAP_MIN_MAX = 0;   % Invert signal if min-max are swapped
+                                   % 1: Swapped, 0:Not Swapped
     end
      %------------------------------------------------ Dependent Properties
     properties (Dependent = true)
@@ -315,10 +317,14 @@ classdef BlockEdfLoadClass
         prefiltering              % Prefiltering
         reserve_2                 % Reserve 2
         
-        % Feedback
+        % Error Checking Information
         errMsg                    % Error Mesasges from check
         mostSeriousErrValue       % Error Value      
         mostSeriousErrMsg         % Error Message
+        totNumDeviations          % total Number of deviations
+        deviationByType           % Number of deviations by class
+        errSummaryMessages        % Error descrptions
+        errSummaryLabel           % Error labels for tables
         
         % Properties supporting analysis
         signalDurationSec         % signal durations in seconds
@@ -343,24 +349,36 @@ classdef BlockEdfLoadClass
         
         % Error Types
         noErrorP = 1;
-        edfDeviationP = 2;
-        scalingErrorP = 3;
-        accessErrorP = 4;
-        scalingAndDataAccessErrorP = 5;
+        inputError = 2;
+        edfDeviationP = 3;
+        scalingErrorP = 4;
+        accessErrorP = 5;
+        scalingAndDataAccessErrorP = 6;
+        numericErrorTypesP = [1:6];
             
         % Error Messages
         errSummaryMessagesP = {...
             'No Error: File meets published EDF standard'; ...
+            'BlockEdfLoadClass: Input Error';...
             'EDF Deviation: Applications may run'; ...
             'Scaling Error: May cause applications to fail'; ...
             'Fatal Error: Access Error'; ...
             'Fatal Error: Data Access Error and Scaling Error'  ...
         };
+        errSummaryLabelP = {...
+            'No Error'; ...
+            'Input Error';...
+            'Deviation Error'; ...
+            'Scaling Error'; ...
+            'Fatal Error'; ...
+            'Fatal+Scaling Error'  ...
+        };
     
         % Define check parameters
         MAX_SIGNALS = 512;
+        DIG_MIN = -32768;       % digital min check: (-32768, -62768)
+        DIG_MAX = 32767;        % digital max check  (32767,  62767)
         
-
     end
     %------------------------------------------------------- Public Methods
     methods
@@ -387,7 +405,7 @@ classdef BlockEdfLoadClass
 
                 % Call MATLAB error function
                 error('Function prototype not valid');
-            end               
+            end    
         end
         %--------------------------------------------------- Block EDF Load
         function varargout = blockEdfLoad(obj, varargin)
@@ -647,11 +665,34 @@ classdef BlockEdfLoadClass
                     phy_min = signalHeader(s).physical_min;
                     phy_max = signalHeader(s).physical_max;
 
+                    % Swap Digital Min-Max
+                    if and((obj.SWAP_MIN_MAX == 1), dig_max < dig_min) 
+                        signalHeader(s).digital_min = dig_max;
+                        signalHeader(s).digital_max = dig_min;
+                        dig_min = signalHeader(s).digital_min;
+                        dig_max = signalHeader(s).digital_max;
+                    end
+
+                    % Swap Physical Min-Max
+                    factor = 1; 
+                    if and((obj.SWAP_MIN_MAX == 1), phy_max < phy_min) 
+                        signalHeader(s).physical_min = phy_max;
+                        signalHeader(s).physical_max = phy_min;
+                        phy_min = signalHeader(s).physical_min;
+                        phy_max = signalHeader(s).physical_max;
+                        
+                        % Invert signal if requested
+                        if obj.INVERT_SWAP_MIN_MAX == 1
+                            factor = -1;
+                        end
+                    end
+
+                    
                     % Convert to analog signal
                     value = (signal-dig_min)/(dig_max-dig_min);
                     value = value.*double(phy_max-phy_min)+phy_min; 
                     
-                    signalCell{s} = value;
+                    signalCell{s} = value*factor;
                 end
 
             end
@@ -678,8 +719,6 @@ classdef BlockEdfLoadClass
             end
                
             %------------------------------------------ Create return value
-
- 
             % Check if object return requested
             if outArgClass == 1
                % Record edf information
@@ -701,8 +740,7 @@ classdef BlockEdfLoadClass
                    varargout{1} = header;
                    varargout{2} = signalHeader;
                    varargout{3} = signalCell;
-                end % End Return Value Function      
-                
+                end % End Return Value Function       
             end
             
             % Close file explicitly
@@ -890,7 +928,7 @@ classdef BlockEdfLoadClass
                 check_num_signal = @(x)and(x>0, x<=obj.MAX_SIGNALS);
                 check_data_records = @(x)x>0;
                 check_data_record_duration = @(x)x>0;
-                check_digital_range = @(x)and(x>=-32768, x<=327670);
+                check_digital_range = @(x)and(x>=obj.DIG_MIN, x<=obj.DIG_MAX);
                 check_samples_in_record = @(x)x>=1;
                 
                 % Check ASCII outcome
@@ -899,7 +937,7 @@ classdef BlockEdfLoadClass
                        getfield(obj.header, headerVariablesStr{t}));
                    if sum(error)> 0
                        errMsg = sprintf...
-                           ('Header Error: Non Ascii chacter in ''%s''',...
+                           ('Header Error: Non ASCII character in ''%s''',...
                                 headerVariablesStr{t}); 
                        errorMSG(end+1) = {errMsg};
                        errorSeverity(end+1) = edfDeviation;
@@ -938,7 +976,7 @@ classdef BlockEdfLoadClass
                      'Header Error: Recording start time second is not standard'};
                 for c = 1:length(dateChecks)
                     check = dateChecks{c};
-                    if check(obj.header.recording_startdate)==0
+                    if check(obj.header.recording_starttime)==0
                         errorMSG(end+1) = {dateErrorMsg{c}};
                         errorSeverity(end+1) = edfDeviation;
                     end
@@ -991,8 +1029,8 @@ classdef BlockEdfLoadClass
                    error = arrayfun(checkAsciiF, signal_labels{s});
                    if sum(error)< length(signal_labels{s})
                        errMsg = sprintf...
-                           ('Signal Header: Non Ascii character in signal, %.0f',...
-                                s); 
+                           ('Signal Header: Non ASCII character in signal, %s (signal %.0f)',...
+                                signal_labels{s}, s); 
                        errorMSG(end+1) = {errMsg};
                        errorSeverity(end+1) = edfDeviation;
                    end
@@ -1005,8 +1043,8 @@ classdef BlockEdfLoadClass
                        getfield(obj.signalHeader(s), 'tranducer_type'));
                    if sum(error)< length(tranducer_type{s})
                        errMsg = sprintf...
-                           ('Signal Header: Non Ascii character in transducer type, signal %.0f',...
-                                s); 
+                           ('Signal Header: Non ASCII character in transducer type, %s (signal %.0f)',...
+                                signal_labels{s}, s); 
                        errorMSG(end+1) = {errMsg};
                        errorSeverity(end+1) = edfDeviation;
                    end
@@ -1018,8 +1056,8 @@ classdef BlockEdfLoadClass
                    error = arrayfun(checkAsciiF, prefiltering{s});
                    if sum(error)< length(prefiltering{s})
                        errMsg = sprintf...
-                           ('Signal Header: Non Ascii character in prefiltering field, signal %.0f',...
-                                s); 
+                           ('Signal Header: Non ASCII character in prefiltering field, %s (signal %.0f)',...
+                                signal_labels{s}, s); 
                        errorMSG(end+1) = {errMsg};
                        errorSeverity(end+1) = edfDeviation;
                    end
@@ -1031,8 +1069,8 @@ classdef BlockEdfLoadClass
                    error = arrayfun(checkAsciiF, reserve_2{s});
                    if sum(error)< length(reserve_2{s})
                        errMsg = sprintf...
-                           ('Signal Header: Non Ascii character in prefiltering field, signal %.0f',...
-                                s); 
+                           ('Signal Header: Non ASCII character in reserve_2 field, %s (signal %.0f)',...
+                                signal_labels{s}, s); 
                        errorMSG(end+1) = {errMsg};
                        errorSeverity(end+1) = edfDeviation;
                    end
@@ -1044,8 +1082,8 @@ classdef BlockEdfLoadClass
                    error = arrayfun(checkAsciiF, physical_dimension{s});
                    if sum(error)< length(physical_dimension{s})
                        errMsg = sprintf...
-                           ('Signal Header: Non Ascii character in physical dimension, signal %.0f',...
-                                s); 
+                           ('Signal Header: Non ASCII character in physical dimension, %s (signal %.0f)',...
+                                signal_labels{s}, s); 
                        errorMSG(end+1) = {errMsg};
                        errorSeverity(end+1) = edfDeviation;
                    end
@@ -1057,8 +1095,8 @@ classdef BlockEdfLoadClass
                 for s = 1:obj.header.num_signals
                    if physical_max(s)==physical_min(s)
                        errMsg = sprintf...
-                           ('Signal Header: Physical min is equal to physical max, signal %.0f',...
-                                s); 
+                           ('Signal Header: Physical min is equal to physical max, %s (signal %.0f)',...
+                                signal_labels{s}, s); 
                        errorMSG(end+1) = {errMsg};
                        errorSeverity(end+1) = scalingError;
                    end
@@ -1070,8 +1108,8 @@ classdef BlockEdfLoadClass
                 for s = 1:obj.header.num_signals
                    if ~(physical_max(s) > physical_min(s))
                        errMsg = sprintf...
-                           ('Signal Header: Physical min is not less than physical max, signal %.0f',...
-                                s); 
+                           ('Signal Header: Physical min is not less than physical max, %s (signal %.0f)',...
+                                signal_labels{s}, s); 
                        errorMSG(end+1) = {errMsg};
                        errorSeverity(end+1) = scalingError;
                    end
@@ -1082,8 +1120,8 @@ classdef BlockEdfLoadClass
                 for s = 1:obj.header.num_signals
                    if check_digital_range(digital_max(s))== 0
                        errMsg = sprintf...
-                           ('Signal Header: Digital max is out of range, signal %.0f',...
-                                s); 
+                           ('Signal Header: Digital max is out of range, %s (signal %.0f)',...
+                                signal_labels{s}, s); 
                        errorMSG(end+1) = {errMsg};
                        errorSeverity(end+1) = scalingError;
                    end
@@ -1094,8 +1132,8 @@ classdef BlockEdfLoadClass
                 for s = 1:obj.header.num_signals
                    if check_digital_range(digital_min(s))== 0
                        errMsg = sprintf...
-                           ('Signal Header: Digital max is out of range, signal %.0f',...
-                                s); 
+                           ('Signal Header: Digital max is out of range, %s (signal %.0f)',...
+                                signal_labels{s}, s); 
                        errorMSG(end+1) = {errMsg};
                        errorSeverity(end+1) = scalingError;
                    end
@@ -1106,8 +1144,8 @@ classdef BlockEdfLoadClass
                 for s = 1:obj.header.num_signals
                    if digital_min(s) >= digital_max(s)
                        errMsg = sprintf...
-                           ('Signal Header: Digital min is not less than digital max, signal %.0f',...
-                                s); 
+                           ('Signal Header: Digital min is not less than digital max, %s (signal %.0f)',...
+                                signal_labels{s}, s); 
                        errorMSG(end+1) = {errMsg};
                        errorSeverity(end+1) = scalingError;
                    end
@@ -1118,8 +1156,8 @@ classdef BlockEdfLoadClass
                 for s = 1:obj.header.num_signals
                    if ~check_samples_in_record(samples_in_record(s))
                        errMsg = sprintf...
-                           ('Signal Header: Samples in record is less than 1, signal %.0f',...
-                                s); 
+                           ('Signal Header: Samples in record is less than 1, %s (signal %.0f)',...
+                                signal_labels{s}, s); 
                        errorMSG(end+1) = {errMsg};
                        errorSeverity(end+1) = accessError;
                    end
@@ -1159,8 +1197,12 @@ classdef BlockEdfLoadClass
                 % Write Summary Statement
                 fprintf(fid,'Most Serious Error From Last Check: %s\n', obj.edfFN);
                 mostSeriousError = max(obj.errMsgSerP);
-                errSummaryMessages = obj.errSummaryMessagesP;
-                fprintf(fid,'\t%s\n', errSummaryMessages{mostSeriousError});
+                if isempty(mostSeriousError)
+                    fprintf(fid,'\t%s\n', 'No Errors Found!');
+                else
+                    errSummaryMessages = obj.errSummaryMessagesP;
+                    fprintf(fid,'\t%s\n', errSummaryMessages{mostSeriousError});
+                end
             end 
         end
         %------------------------------------------------------ Write Check
@@ -1414,7 +1456,42 @@ classdef BlockEdfLoadClass
        %------------------------------------------------------------ errMsg
        function value = get.mostSeriousErrMsg(obj)
             % returns loaded edf components in a single structure
-            value = obj.errSummaryMessagesP{max(obj.errMsgSerP)};
+            if ~isempty(obj.errMsgSerP);
+                value = obj.errSummaryMessagesP{max(obj.errMsgSerP)};
+            else
+                value = 'No error found!';
+            end
+       end
+       %-------------------------------------------------- totNumDeviations
+       function value = get.totNumDeviations(obj)
+            % returns loaded edf components in a single structure
+            if ~isempty(obj.errMsgSerP)
+            	value = 0;
+            else
+                value = length(obj.errMsgSerP);
+            end       
+       end
+       %--------------------------------------------------- deviationByType
+       function value = get.deviationByType(obj)
+            % returns loaded edf components in a single structure
+            numericErrorTypesP = obj.numericErrorTypesP;
+            errMsgSerP = obj.errMsgSerP;
+            countErrTypeF = @(x)sum(errMsgSerP == x);
+            value = arrayfun(countErrTypeF, numericErrorTypesP);
+            if sum(value) == 0
+                % Set no error index to 1
+                value(1) = 1;
+            end
+       end       
+       %------------------------------------------------ errSummaryMessages
+       function value = get.errSummaryMessages(obj)
+            % returns loaded edf components in a single structure
+            value = obj.errSummaryMessagesP;
+       end
+       %--------------------------------------------------- errSummaryLabel
+       function value = get.errSummaryLabel(obj)
+            % returns loaded edf components in a single structure
+            value = obj.errSummaryLabelP;
        end
        %----------------------------------- Properties Supporting Analysis
         %------------------------------------------------ signalDurationSec

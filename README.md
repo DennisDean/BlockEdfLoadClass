@@ -28,7 +28,7 @@ Class version of EDF loader class.  Provides additional funcitonality that minim
    obj.WriteCheck                                        Write results of check to file  
               
 ## Test functions
-A limited set of test functions are provide to demonstrate the major functionality. Test functions and supporting files can be found in the release section and include:
+A limited set of [test functions](https://github.com/DennisDean/BlockEdfLoadClass/blob/master/testBlockEdfLoadClassDistribution.m) are provide to demonstrate the major functionality. Test functions and supporting files can be found in the release section and include:
 
 1. Test load/plot functionality
 2. Evaluate Memory saving features

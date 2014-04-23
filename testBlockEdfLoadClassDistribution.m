@@ -3,7 +3,7 @@ function testBlockEdfLoadClassDistribution
 %   Test  BlockEdfLoadClass.
 %
 %
-% Version: 0.1.21
+% Version: 0.1.25
 %
 % ---------------------------------------------
 % Dennis A. Dean, II, Ph.D
@@ -15,7 +15,7 @@ function testBlockEdfLoadClassDistribution
 % Boston, MA  02149
 %
 % File created: October 23, 2012
-% Last update:  January 23, 2013 
+% Last update:  April 24, 2014 
 %    
 % Copyright © [2014] The Brigham and Women's Hospital, Inc.
 % THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
@@ -38,13 +38,14 @@ edfFn3 = 'edfCheckSignalHeader1.edf';   % Inserted EDF Signal Header Errors
     
 % Test flags
 RUN_TEST_1 =  1;    % Test load/plot functionality
-RUN_TEST_2 =  0;    % Evaluate Memory saving features
-RUN_TEST_3 =  0;    % Use static function to identify EDF files
-RUN_TEST_4 =  0;    % Control the number of components loaded (Signals Not Loaded)
-RUN_TEST_5 =  0;    % Get edf file names from folder
-RUN_TEST_6 =  0;    % Dependent variables provide direct access to signal labels and
+RUN_TEST_2 =  1;    % Evaluate Memory saving features
+RUN_TEST_3 =  1;    % Use static function to identify EDF files
+RUN_TEST_4 =  1;    % Control the number of components loaded (Signals Not Loaded)
+RUN_TEST_5 =  1;    % Get edf file names from folder
+RUN_TEST_6 =  1;    % Dependent variables provide direct access to signal labels and
                     %   sampling rate
-RUN_TEST_7 =  1;    % EDF Checker                 
+RUN_TEST_7 =  1;    % EDF Checker  
+RUN_TEST_8 =  1;    % Check flag to invert swapped signals
 
 
 % ------------------------------------------------------------------ Test 1
@@ -297,5 +298,83 @@ if RUN_TEST_7 == 1
         end
     end
 
+end
+% ------------------------------------------------------------------ Test 8
+% Test 8: Check flag to invert swapped signals
+if RUN_TEST_8 == 1
+    % Write test results to console
+    fprintf('------------------------------- Test 8\n\n');
+    fprintf('Check flag to invert swapped signals\n\n');
+    
+    
+    %------------------------------------------------- Show swapped signals
+    % Open generated test file
+    edfFn1 = '201434_deidentified.EDF';
+        
+    % Load EDF
+    belClass = BlockEdfLoadClass(edfFn1);
+    belClass = belClass.blockEdfLoad;  
+    belClass = belClass.CheckEdf; 
+    belClass.DispCheck;
+    
+    %------------------------------------------------------------ No Invert
+    % Open generated test file
+    edfFn1 = '201434_deidentified.EDF';
+    
+    % Load EDF
+    signalLabels = {'AIRFLOW', 'THOR RES', 'ABDO RES'};
+    belClass = BlockEdfLoadClass(edfFn1, signalLabels);
+    belClass.SWAP_MIN_MAX = 1;
+    belClass.INVERT_SWAP_MIN_MAX = 0;  
+    belClass = belClass.blockEdfLoad;  
+
+    belClass = belClass.PlotEdfSignalStart;
+    
+    title('Swap Min-Max with no Signal Inversion');
+    
+    %--------------------------------------------------------- ----- Invert
+    % Open generated test file
+    edfFn1 = '201434_deidentified.EDF';
+    
+    % Load EDF
+    signalLabels = {'AIRFLOW', 'THOR RES', 'ABDO RES'};
+    belClass = BlockEdfLoadClass(edfFn1, signalLabels);
+    belClass.SWAP_MIN_MAX = 1;
+    belClass.INVERT_SWAP_MIN_MAX = 1;  
+    belClass = belClass.blockEdfLoad;  
+    belClass = belClass.PlotEdfSignalStart;    
+    title('Swap Min-Max with Signal Inversion');
+    
+    % Check that summary variables are returned
+    mostSeriousErrValue = belClass.mostSeriousErrValue;
+    mostSeriousErrMsg = belClass.mostSeriousErrMsg;
+    fprintf('\nCheck class error variables (No Min/Max Fix):\n');
+    fprintf('\tMost serious error Id (%.0f)\n\tMost serious error messsage:  ''%s''\n\n\n',...
+        mostSeriousErrValue, mostSeriousErrMsg);    
+    
+    %--------------------------------------------------- Detailed Reporting
+    % Get more quantitative information regarding the errors
+    totNumDeviations = belClass.totNumDeviations;
+    deviationByType = belClass.deviationByType;
+    errSummaryLabel = belClass.errSummaryLabel;
+    errSummaryMessages = belClass.errSummaryMessages;
+    
+    % Echo Status to Console
+    fprintf('%s, total number of errors = %.0f\n\n', ...
+        edfFn1, totNumDeviations);
+    fprintf('Deviations by type: %s = %.0f, %s = %.0f, %s = %.0f\n',...
+        errSummaryLabel{1}, deviationByType(1), ...
+        errSummaryLabel{2}, deviationByType(2),...
+        errSummaryLabel{3}, deviationByType(3));
+    fprintf('Deviations by type: %s = %.0f, %s = %.0f, %s = %.0f\n\n',...
+        errSummaryLabel{4}, deviationByType(4), ...
+        errSummaryLabel{5}, deviationByType(5),...
+        errSummaryLabel{6}, deviationByType(6));   
+    
+    % Write some more information to the console
+    belClass.PrintEdfHeader
+    belClass.PrintEdfSignalHeader
+    
+    
 end
 end

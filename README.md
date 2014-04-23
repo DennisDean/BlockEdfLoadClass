@@ -18,14 +18,14 @@ Class version of EDF loader class.  Provides additional funcitonality that minim
 
 * Summary Functions
 
-   obj.PrintEdfHeader                                    Write header contents to console  
-   obj.WriteEdfHeader                                    Write header to file defined in private properties  
-   obj.PrintEdfSignalHeader                              Write signal header information to console  
-   obj.WriteEdfSignalHeader                              Write signal header to file defined in private properties  
-   obj.PlotEdfSignalStart                                Plot signal start  
-   obj.CheckEdf                                          Check EDF header and signal header  
-   obj.DispCheck                                         Display results of check to console  
-   obj.WriteCheck                                        Write results of check to file  
+   obj.PrintEdfHeader,                                    Write header contents to console  
+   obj.WriteEdfHeader,                                    Write header to file defined in private properties  
+   obj.PrintEdfSignalHeader,                              Write signal header information to console  
+   obj.WriteEdfSignalHeader,                              Write signal header to file defined in private properties  
+   obj.PlotEdfSignalStart,                                Plot signal start  
+   obj.CheckEdf,                                          Check EDF header and signal header  
+   obj.DispCheck,                                         Display results of check to console  
+   obj.WriteCheck,                                        Write results of check to file  
               
 ## Test functions
 A limited set of [test functions](https://github.com/DennisDean/BlockEdfLoadClass/blob/master/testBlockEdfLoadClassDistribution.m) are provide to demonstrate the major functionality. Test functions and supporting files can be found in the release section and include:

@@ -1,6 +1,6 @@
 # BlockEdfLoaderClass
 
-Class version of EDF loader class.  Provides additional funcitonality that minimizes the amount of code required to access EDF contents than [BlockEdfLoad](https://github.com/DennisDean/BlockEdfLoad).  Class includes an [EDF checker](https://github.com/DennisDean/BlockEdfLoadClass/releases), a function for identifying EDFs in a folder and a function for checking an EDFs content.
+Class version of EDF loader class.  Provides additional funcitonality that minimizes the amount of code required to access EDF contents when compared to [BlockEdfLoad](https://github.com/DennisDean/BlockEdfLoad). Class includes an [EDF checker](https://github.com/DennisDean/BlockEdfLoadClass/releases), a function for identifying EDFs in a folder, and a function for checking an EDF's content.
 
 ## Public Methods
 
@@ -28,13 +28,13 @@ Class version of EDF loader class.  Provides additional funcitonality that minim
    obj.WriteCheck,                                        Write results of check to file  
               
 ## Test functions
-A limited set of [test functions](https://github.com/DennisDean/BlockEdfLoadClass/blob/master/testBlockEdfLoadClassDistribution.m) are provide to demonstrate the major functionality. Test functions and supporting files can be found in the release section and include:
+A limited set of [test functions](https://github.com/DennisDean/BlockEdfLoadClass/blob/master/testBlockEdfLoadClassDistribution.m) are provided to demonstrate the major functionality. Test functions and supporting files can be found in the release section and include:
 
 1. Test load/plot functionality
-2. Evaluate Memory saving features
+2. Evaluate memory saving features
 3. Use static function to identify EDF files
 4. Control the number of components loaded (Signals Not Loaded)
-5. Get edf file names from folder
+5. Generate EDF file names from folder
 6. Dependent variables provide direct access to signal labels and sampling rate
 7. EDF Checker  
 8. Check flag to invert swapped signals
